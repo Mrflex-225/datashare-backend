@@ -68,6 +68,12 @@ public class SpringSecurityConfig {
                         .dispatcherTypeMatchers(
                                 DispatcherType.ERROR
                         ).permitAll()
+                        .requestMatchers(
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs",
+                                "/v3/api-docs/**"
+                        ).permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/register", "/api/login","/api/files/download/**").permitAll()
                         .requestMatchers(HttpMethod.POST,"/api/files").authenticated()
