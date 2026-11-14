@@ -311,13 +311,6 @@ public void deleteFile(Long id, String email) {
         );
     }
 
-    if (!file.getExpirationDate().isAfter(LocalDateTime.now())) {
-        throw new ResponseStatusException(
-            HttpStatus.CONFLICT,
-            "Ce fichier est déjà expiré"
-        );
-    }
-
     try {
         s3StorageService.deleteFile(file.getStoragePath());
 
@@ -340,5 +333,31 @@ public void deleteFile(Long id, String email) {
         );
     }
 }
+
+
+    public void deleteExpiredFile(File file) {
+
+        try {
+            // Suppression de l'objet AWS S3
+            s3StorageService.deleteFile(file.getStoragePath());
+
+            fileRepository.delete(file);
+
+        } catch (S3Exception e) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Impossible de supprimer le fichier expiré sur AWS S3",
+                    e
+            );
+
+        } catch (SdkClientException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Le service de stockage est temporairement indisponible",
+                    e
+            );
+        }
+    }
+
 
 }

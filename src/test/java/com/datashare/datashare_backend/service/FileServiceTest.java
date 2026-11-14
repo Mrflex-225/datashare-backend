@@ -30,12 +30,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -454,16 +449,23 @@ public class FileServiceTest {
         verify(s3StorageService, never()).deleteFile(anyString());
     }
 
-    @Test
-    public void test_delete_expired_file_throws_conflict() {
-        // GIVEN
-        when(fileRepository.findById(1L)).thenReturn(Optional.of(storedFile(inDays(-1), null)));
 
-        // THEN
-        ResponseStatusException e = assertThrows(ResponseStatusException.class,
-                () -> fileService.deleteFile(1L, EMAIL));
-        assertStatus(HttpStatus.CONFLICT, e);
+    @Test
+    public void test_delete_expired_file_successfully() {
+        // GIVEN
+        File expiredFile = storedFile(inDays(-1), null);
+
+        when(fileRepository.findById(1L))
+                .thenReturn(Optional.of(expiredFile));
+
+        // WHEN & THEN
+        assertDoesNotThrow(() -> fileService.deleteFile(1L, EMAIL));
+
+        // VERIFY
+        verify(s3StorageService).deleteFile(expiredFile.getStoragePath());
+        verify(fileRepository).delete(expiredFile);
     }
+
 
     @Test
     public void test_delete_file_s3_error_throws_bad_gateway() {

@@ -23,4 +23,8 @@ public interface FileRepository
     );
 
     List<File> findByUser_Email(String email);
+
+    List<File> findTop100ByExpirationDateLessThanEqualOrderByExpirationDateAsc(
+            LocalDateTime date
+    );
 }
