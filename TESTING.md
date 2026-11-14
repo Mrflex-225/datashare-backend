@@ -4,7 +4,7 @@
 **Application :** Partage sécurisé de fichiers  
 **Technologies :** Angular, Spring Boot, PostgreSQL, AWS S3  
 **Outils de test :** JUnit 5, Mockito, Maven, JaCoCo, Jest, Cypress  
-**Date du rapport :** 6 novembre 2026
+**Date du rapport :** 14 novembre 2026 (mise à jour du backend)
 
 ---
 
@@ -129,44 +129,104 @@ Certains scénarios utilisent `cy.intercept()` pour simuler les réponses HTTP.
 Depuis le dossier `datashare-backend` :
 
 ```powershell
-./mvnw clean verify
+.\mvnw.cmd "-Dtest=ExpiredFileCleanupServiceTest" test
 ```
 
-Cette commande compile l'application, exécute les tests configurés dans le cycle Maven et génère les rapports associés, dont JaCoCo.
+Pour relancer l'ensemble des tests et générer le rapport JaCoCo :
 
-### 5.2 Résultats
+```powershell
+.\mvnw.cmd clean verify
+```
 
-**Exécution du 6 novembre 2026 :**
+La commande `clean verify` a été exécutée le **14 novembre 2026** après les modifications : **70 tests réussis, aucun échec, BUILD SUCCESS**. Le rapport JaCoCo a été régénéré.
 
-| Indicateur | Résultat |
+### 5.2. Campagne initiale — 6 novembre 2026
+
+| Indicateur | Résultat vérifié |
 |---|---:|
-| Tests exécutés | 66 |
+| Tests backend exécutés | 66 |
 | Tests réussis | 66 |
-| Échecs | 0 |
-| Erreurs | 0 |
-| Tests ignorés | 0 |
+| Échecs / erreurs / ignorés | 0 / 0 / 0 |
 | Compilation Maven | BUILD SUCCESS |
 
-Parmi les classes de tests observées :
+Répartition historique de la campagne initiale :
 
-| Classe |  Tests |
-|---|-------:|
-| `DatashareBackendApplicationTests` |      1 |
-| `FileServiceTest` |     35 |
-| `JwtServiceTest` |      4 |
-| `S3StorageServiceTest` |      4 |
-| `UserServiceTest` |      8 |
-| `UserControllerTest` |      4 |
-| `FileControllerTest` |     10 |
-| **Total** | **66** |
+| Classe de test | Nombre de tests |
+|---|---:|
+| `DatashareBackendApplicationTests` | 1 |
+| `FileServiceTest` | 35 |
+| `JwtServiceTest` | 4 |
+| `S3StorageServiceTest` | 4 |
+| `UserServiceTest` | 8 |
+| `UserControllerTest` | 4 |
+| `FileControllerTest` | 10 |
+| **Total (6 novembre)** | **66** |
 
-Les résultats confirment l'exécution correcte de l'ensemble des 66 tests.
+Cette répartition ne constitue pas un inventaire actualisé des tests après ajout des nouveaux composants.
 
-### 5.3 Critères de validation
+### 5.3. Nouveaux tests — nettoyage des fichiers expirés (14 novembre 2026)
 
-Les tests backend vérifient notamment les comportements métier des services, la gestion des erreurs et les opérations liées à l'authentification et aux fichiers.
+La fonctionnalité de nettoyage planifié vise à retirer les fichiers expirés du stockage AWS S3 et leurs métadonnées PostgreSQL. Un nouveau service `ExpiredFileCleanupService` utilise une horloge UTC injectable et délègue la suppression au `FileService` existant.
 
-**Résultat : validé pour les 66 tests exécutés.**
+La classe `ExpiredFileCleanupServiceTest` comporte quatre tests unitaires:
+
+| Test | Comportement vérifié |
+|---|---|
+| `shouldDeleteExpiredFiles` | Le service demande la suppression des fichiers retournés par le repository |
+| `shouldDoNothingWhenNoFileIsExpired` | Aucune suppression si le repository ne trouve aucun fichier expiré |
+| `shouldContinueWhenOneDeletionFails` | Une erreur sur un fichier ne bloque pas les autres suppressions |
+| `shouldUseUtcTimeFromClock` | La recherche utilise l'heure UTC fournie par l'horloge injectable |
+
+**Résultat d'exécution du 14 novembre 2026 :**
+
+```text
+Tests run: 4, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+Ces tests isolent `FileRepository` et `FileService` avec Mockito : ils prouvent le comportement du service de nettoyage, **pas** la suppression physique d'objets dans un bucket AWS S3 réel.
+
+### 5.4. Vérification en exécution — tâche planifiée
+
+Le 14 novembre 2026, le backend démarré a produit les messages suivants :
+
+```text
+Expired files cleanup: found=29, deleted=29, failed=0
+Expired files deleted: 29
+```
+
+Les journaux Hibernate montrent également des instructions `DELETE` dans les tables `file_tags` et `files`. Ces traces confirment le déclenchement de la tâche planifiée et l'exécution de suppressions SQL.
+
+### 5.5. Régression sur la suppression manuelle
+
+L'ancien test `test_delete_expired_file_throws_conflict` attendait une erreur HTTP 409, conformément à l'ancien comportement du backend. La règle a été modifiée pour permettre au propriétaire de supprimer un fichier déjà expiré.
+
+Le test doit maintenant vérifier que l'appel `FileService.deleteFile(id, email)` ne lève pas d'exception liée à l'expiration et qu'il sollicite la suppression de l'objet S3 puis des métadonnées.
+
+### 5.6. Validation de la suite backend complète — 14 novembre 2026
+
+La suite Maven complète a été exécutée après l’ajout du nettoyage automatique et la modification du comportement de suppression des fichiers expirés.
+
+**Commande :**
+
+```powershell
+.\mvnw.cmd clean verify
+```
+
+| Indicateur | Résultat confirmé |
+|---|---:|
+| Tests exécutés | **70** |
+| Tests réussis | **70** |
+| Échecs | **0** |
+| Erreurs | **0** |
+| Tests ignorés | **0** |
+| Compilation et empaquetage | **BUILD SUCCESS** |
+| Rapport JaCoCo généré | **Oui** |
+| Classes analysées par JaCoCo | **25** |
+
+Cette exécution complète constitue le nouveau résultat de référence du backend et remplace le total historique de 66 tests.
+
+L’ajout de quatre tests portant sur `ExpiredFileCleanupService` permet de vérifier l’utilisation de l’horloge UTC, la sélection des fichiers expirés, l’absence d’action lorsque la liste est vide et la poursuite du nettoyage après un échec individuel.
 
 ## 6. Tests frontend — Jest
 
@@ -274,18 +334,15 @@ target/site/jacoco/index.html
 
 **Résultats du 6 novembre 2026 :**
 
-![Rapport de couverture du backend JaCoCo](./couverture_backend.png)
+**Résultats actualisés du 14 novembre 2026 (70 tests backend réussis) :**
 
-| Métrique | Couverture obtenue | Seuil attendu | Résultat |
+| Métrique | Résultat JaCoCo | Seuil fixé | Évaluation |
 |---|---:|---:|---|
-| Instructions | 91 % | 70 % | Atteint |
-| Branches | 80 % | 70 % | Atteint |
-
-Le rapport indique également :
-
-- 1 226 instructions au total, dont 109 non couvertes.
-- 78 branches au total, dont 15 non couvertes.
-- 21 classes analysées.
+| Instructions | **88 %** | 70 % | Atteint |
+| Branches | **80 %** | 70 % | Atteint |
+| Instructions non couvertes | **149 sur 1 350** | — | À améliorer |
+| Branches non couvertes | **15 sur 78** | — | À améliorer |
+| Classes analysées | **25** | — | — |
 
 Les deux métriques mesurées dépassent le seuil de couverture fixé.
 
@@ -297,7 +354,7 @@ Les packages `service` et `controller` présentent une couverture élevée, ce q
 
 Des tests complémentaires pourront notamment être ajoutés pour vérifier les différents comportements liés à la configuration de Spring Security.
 
-**Bilan backend :** avec 91 % de couverture des instructions et 80 % des branches, le backend respecte le seuil minimal de 70 %.
+**Bilan backend :** avec 88 % de couverture des instructions et 80 % des branches, le backend respecte le seuil minimal de 70 %.
 
 ### 8.4. Couverture du frontend — Jest
 
@@ -347,21 +404,21 @@ Les tests automatisés réalisés sur DataShare ont permis de vérifier le fonct
 
 ### 9.1. Synthèse des résultats
 
-| Vérification | Résultat | Statut |
-|---|---|---|
-| Build backend Spring Boot | Réussi | Validé |
-| Tests backend JUnit | 66/66 réussis | Validé |
-| Couverture des instructions backend | 91 % | Seuil atteint |
-| Couverture des branches backend | 80 % | Seuil atteint |
-| Migration frontend vers Angular 21 | Effectuée | Validé |
+| Vérification | Résultat      | Statut |
+|---|---------------|---|
+| Build backend Spring Boot | Réussi        | Validé |
+| Tests backend JUnit | 70/70 réussis | Validé |
+| Couverture des instructions backend | 88 %          | Seuil atteint |
+| Couverture des branches backend | 80 %          | Seuil atteint |
+| Migration frontend vers Angular 21 | Effectuée     | Validé |
 | Tests frontend Jest | 90/90 réussis | Validé |
-| Couverture des instructions frontend | 90,64 % | Seuil atteint |
-| Couverture des branches frontend | 76,36 % | Seuil atteint |
-| Couverture des fonctions frontend | 92,20 % | Seuil atteint |
-| Couverture des lignes frontend | 90,18 % | Seuil atteint |
+| Couverture des instructions frontend | 90,64 %       | Seuil atteint |
+| Couverture des branches frontend | 76,36 %       | Seuil atteint |
+| Couverture des fonctions frontend | 92,20 %       | Seuil atteint |
+| Couverture des lignes frontend | 90,18 %       | Seuil atteint |
 | Tests Cypress | 23/23 réussis | Validé |
 
-Au total, **179 tests automatisés ont été exécutés avec succès**, répartis entre le backend (66 tests), les tests frontend Jest (90 tests) et les tests Cypress (23 tests).
+Au total, **183 tests automatisés ont été exécutés avec succès**, répartis entre le backend (66 tests), les tests frontend Jest (90 tests) et les tests Cypress (23 tests).
 
 Les tests Cypress utilisent des réponses HTTP simulées dans plusieurs scénarios. Ils permettent donc de valider les interactions de l'interface Angular, mais ne garantissent pas à eux seuls le fonctionnement de l'ensemble des services réels.
 
