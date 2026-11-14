@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -58,72 +57,16 @@ public class FileService {
             String password
 
     ) throws IOException {
+        // 1. Valider le fichier
+        validateFile(multipartFile);
 
-        // 1. Vérifier que le fichier existe
-        if (multipartFile.isEmpty()) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Le fichier est vide"
-            );
-        }
+        // 2. Verifier la date d'expiration
+        int days = resolveExpirationDays(expirationDays);
 
-        // 2. Vérifier sa taille
-        if (multipartFile.getSize() > MAX_SIZE) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Taille maximale : 1 Go"
-            );
-        }
+        // 3. Validation du fichier et extraction
+        String originalName = validateAndExtractFileName(multipartFile);
 
-        // 3. Vérifier l'expiration
-        int days = expirationDays == null
-                ? 7 : expirationDays;
-
-        if (days < 1 || days > 7) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Expiration : entre 1 et 7 jours"
-            );
-        }
-
-        // 4. Vérifier son nom et son extension
-        String originalName =
-                multipartFile.getOriginalFilename();
-
-        if (originalName == null
-                || originalName.isBlank()
-                || originalName.contains("/")
-                || originalName.contains("\\")) {
-
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Nom de fichier invalide"
-            );
-        }
-
-        String normalizedName = originalName.toLowerCase(Locale.ROOT);
-
-        int dotIndex = normalizedName.lastIndexOf('.');
-
-        if (dotIndex < 0 || dotIndex == normalizedName.length() - 1) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Extension de fichier manquante"
-            );
-        }
-
-
-        String extension = normalizedName.substring(dotIndex + 1)
-            .toLowerCase(Locale.ROOT);
-
-        if (UNALLOWED_EXTENSIONS.contains(extension)) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Ce type de fichier est interdit"
-            );
-        }
-
-        // 5. Identifier le propriétaire
+        // 4. Identifier le propriétaire
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->
                         new ResponseStatusException(
@@ -132,28 +75,16 @@ public class FileService {
                         )
                 );
 
-        // 6. Vérifier et hasher le mot de passe facultatif
-        String passwordHash = null;
+        // 4. Hachage du mot de passe
+        String passwordHash = hashOptionalPassword(password);
 
-        if (password != null && !password.isEmpty()) {
-
-            if (password.length() < 6) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Le mot de passe doit contenir au moins 6 caractères"
-                );
-            }
-
-            passwordHash = passwordEncoder.encode(password);
-        }
-
-        // 7. Créer des identifiants uniques
+        // 5. Créer des identifiants uniques
         String storagePath =
                 "uploads/" + UUID.randomUUID();
 
         String token = UUID.randomUUID().toString();
 
-        // 8. Calculer la date d'expiration
+        // 6. Calculer la date d'expiration
         LocalDateTime expiration =
                 LocalDateTime.now(ZoneOffset.UTC)
                         .plusDays(days);
@@ -163,7 +94,7 @@ public class FileService {
                         ? "application/octet-stream"
                         : multipartFile.getContentType();
 
-        // 9. Construire l'entité
+        // 7. Construire l'entité
         File file = File.builder()
                 .originalName(originalName)
                 .storagePath(storagePath)
@@ -175,13 +106,13 @@ public class FileService {
                 .user(user)
                 .build();
 
-        // 10. Envoyer le contenu vers AWS S3
+        // 8. Envoyer le contenu vers AWS S3
         s3StorageService.upload(
                 multipartFile,
                 storagePath
         );
 
-        // 11. Enregistrer les métadonnées
+        // 9. Enregistrer les métadonnées
         try {
             fileRepository.saveAndFlush(file);
         } catch (RuntimeException e) {
@@ -228,19 +159,12 @@ public class FileService {
             );
         }
 
-        if (file.getPassword() != null) {
-
-            if (password == null ||
-                    !passwordEncoder.matches(
-                            password,
-                            file.getPassword()
-                    )) {
-
-                throw new ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "Mot de passe manquant ou incorrect"
-                );
-            }
+        if (file.getPassword() != null &&
+                (password == null || !passwordEncoder.matches(password, file.getPassword()))) {
+            throw new ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Mot de passe manquant ou incorrect"
+            );
         }
 
         return s3StorageService.generateDownloadUrl(
@@ -359,5 +283,82 @@ public void deleteFile(Long id, String email) {
         }
     }
 
+    private void validateFile(MultipartFile multipartFile) {
+        if (multipartFile.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Le fichier est vide"
+            );
+        }
 
+        if (multipartFile.getSize() > MAX_SIZE) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Taille maximale : 1 Go"
+            );
+        }
+    }
+
+    private int resolveExpirationDays(Integer expirationDays) {
+        int days = expirationDays == null ? 7 : expirationDays;
+
+        if (days < 1 || days > 7) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Expiration : entre 1 et 7 jours"
+            );
+        }
+
+        return days;
+    }
+
+    private String validateAndExtractFileName(MultipartFile multipartFile) {
+        String originalName = multipartFile.getOriginalFilename();
+
+        if (originalName == null
+                || originalName.isBlank()
+                || originalName.contains("/")
+                || originalName.contains("\\")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Nom de fichier invalide"
+            );
+        }
+
+        String normalizedName = originalName.toLowerCase(Locale.ROOT);
+        int dotIndex = normalizedName.lastIndexOf('.');
+
+        if (dotIndex < 0 || dotIndex == normalizedName.length() - 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Extension de fichier manquante"
+            );
+        }
+
+        String extension = normalizedName.substring(dotIndex + 1);
+
+        if (UNALLOWED_EXTENSIONS.contains(extension)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Ce type de fichier est interdit"
+            );
+        }
+
+        return originalName;
+    }
+
+    private String hashOptionalPassword(String password) {
+        if (password == null || password.isEmpty()) {
+            return null;
+        }
+
+        if (password.length() < 6) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Le mot de passe doit contenir au moins 6 caractères"
+            );
+        }
+
+        return passwordEncoder.encode(password);
+    }
 }

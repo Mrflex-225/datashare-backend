@@ -1,6 +1,7 @@
 package com.datashare.datashare_backend.configuration.security;
 
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.NullMarked;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -10,6 +11,7 @@ import com.datashare.datashare_backend.repository.UserRepository;
 
 @Service
 @RequiredArgsConstructor
+@NullMarked
 public class CustomUserDetailService implements UserDetailsService {
 
     private final UserRepository userRepository;

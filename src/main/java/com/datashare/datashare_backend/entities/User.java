@@ -46,7 +46,7 @@ public class User implements UserDetails {
         cascade = CascadeType.ALL,
         orphanRemoval = true
     )
-    private List<File> files;
+    private transient List<File> files;
 
     @Override
     public String getUsername() {

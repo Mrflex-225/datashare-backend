@@ -8,8 +8,10 @@ import com.datashare.datashare_backend.dto.FileMetadataDTO;
 import com.datashare.datashare_backend.dto.PublicFileMetadataDTO;
 import com.datashare.datashare_backend.service.FileService;
 
+import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
 
+import org.jspecify.annotations.NullMarked;
 import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/files")
 @RequiredArgsConstructor
+@NullMarked
 public class FileController {
 
     private final FileService fileService;
@@ -57,11 +60,9 @@ public class FileController {
     @PostMapping("/download/{token}")
     public ResponseEntity<DownloadResponseDTO> download(
             @PathVariable String token,
-            @RequestBody(required = false) DownloadRequestDTO request
+            @RequestBody(required = false) @Nullable DownloadRequestDTO request
     ) {
-        String password = request != null
-                ? request.password()
-                : null;
+        String password = request != null ? request.password() : null;
 
         String signedUrl = fileService.getDownloadUrl(token, password);
 

@@ -1,12 +1,13 @@
 package com.datashare.datashare_backend.repository;
 
 import com.datashare.datashare_backend.entities.File;
+import org.jspecify.annotations.NullMarked;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-
+@NullMarked
 public interface FileRepository
         extends JpaRepository<File, Long> {
 

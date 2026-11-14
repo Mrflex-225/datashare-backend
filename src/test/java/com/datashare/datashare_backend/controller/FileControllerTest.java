@@ -130,6 +130,7 @@ public class FileControllerTest {
 
     @Test
     public void test_download_without_body() throws Exception {
+
         // GIVEN
         when(fileService.getDownloadUrl(TOKEN, null)).thenReturn("https://s3/signed");
 
