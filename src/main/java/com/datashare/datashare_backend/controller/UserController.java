@@ -30,7 +30,6 @@ public class UserController {
 
     @PostMapping("/api/login")
     public ResponseEntity<?> login(@RequestBody LoginRequestDTO loginRequestDTO) {
-        System.out.println(loginRequestDTO);
         String jwtToken = userService.login(loginRequestDTO.getEmail(), loginRequestDTO.getPassword());
         return ResponseEntity.ok(jwtToken);
     }
