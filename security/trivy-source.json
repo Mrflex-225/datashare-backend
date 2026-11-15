@@ -1,0 +1,125 @@
+{
+  "SchemaVersion": 2,
+  "Trivy": {
+    "Version": "0.76.2"
+  },
+  "ReportID": "01a1de4b-bfb6-77f6-88a6-e26a33e6f5c5",
+  "CreatedAt": "2026-11-15T08:21:08.662523657Z",
+  "ArtifactID": "sha256:ec8f9340102204623cc779eeb8fd5cdcff21e85e07dd9d03f88330f2baf30547",
+  "ArtifactName": "/src",
+  "ArtifactType": "repository",
+  "Metadata": {
+    "RepoURL": "https://github.com/Mrflex-225/datashare-backend.git",
+    "Branch": "main",
+    "Commit": "de6413cb5c54e1a27a4d498559bb95d0f83fd1eb",
+    "CommitMsg": "refactor(quality): corrections issues de l'analyse SonarQube\n\nAmelioration de la gestion des dates JWT, des annotations de nullabilite et de la configuration de securite. Verification des tests de regression.",
+    "Author": "cgnangui \u003ccoffi-desire.gnanguy@etudiant.univ-rennes.fr\u003e",
+    "Committer": "cgnangui \u003ccoffi-desire.gnanguy@etudiant.univ-rennes.fr\u003e"
+  },
+  "Results": [
+    {
+      "Target": ".env",
+      "Class": "secret",
+      "Secrets": [
+        {
+          "RuleID": "aws-access-key-id",
+          "Category": "AWS",
+          "Severity": "CRITICAL",
+          "Title": "AWS Access Key ID",
+          "StartLine": 6,
+          "EndLine": 6,
+          "Code": {
+            "Lines": [
+              {
+                "Number": 4,
+                "Content": "JWT_SECRET = YieibisXxXLOfZfuYWrG0txycAT8exi3TSPJt+i/e2s=",
+                "IsCause": false,
+                "Annotation": "",
+                "Truncated": false,
+                "Highlighted": "JWT_SECRET = YieibisXxXLOfZfuYWrG0txycAT8exi3TSPJt+i/e2s=",
+                "FirstCause": false,
+                "LastCause": false
+              },
+              {
+                "Number": 5,
+                "Content": "JWT_EXPIRATION=86400000",
+                "IsCause": false,
+                "Annotation": "",
+                "Truncated": false,
+                "Highlighted": "JWT_EXPIRATION=86400000",
+                "FirstCause": false,
+                "LastCause": false
+              },
+              {
+                "Number": 6,
+                "Content": "AWS_ACCESS_KEY_ID=********************",
+                "IsCause": true,
+                "Annotation": "",
+                "Truncated": false,
+                "Highlighted": "AWS_ACCESS_KEY_ID=********************",
+                "FirstCause": true,
+                "LastCause": true
+              },
+              {
+                "Number": 7,
+                "Content": "AWS_SECRET_ACCESS_KEY=****************************************",
+                "IsCause": false,
+                "Annotation": "",
+                "Truncated": false,
+                "Highlighted": "AWS_SECRET_ACCESS_KEY=****************************************",
+                "FirstCause": false,
+                "LastCause": false
+              }
+            ]
+          },
+          "Match": "AWS_ACCESS_KEY_ID=********************",
+          "Offset": 193
+        },
+        {
+          "RuleID": "aws-secret-access-key",
+          "Category": "AWS",
+          "Severity": "CRITICAL",
+          "Title": "AWS Secret Access Key",
+          "StartLine": 7,
+          "EndLine": 7,
+          "Code": {
+            "Lines": [
+              {
+                "Number": 5,
+                "Content": "JWT_EXPIRATION=86400000",
+                "IsCause": false,
+                "Annotation": "",
+                "Truncated": false,
+                "Highlighted": "JWT_EXPIRATION=86400000",
+                "FirstCause": false,
+                "LastCause": false
+              },
+              {
+                "Number": 6,
+                "Content": "AWS_ACCESS_KEY_ID=********************",
+                "IsCause": false,
+                "Annotation": "",
+                "Truncated": false,
+                "Highlighted": "AWS_ACCESS_KEY_ID=********************",
+                "FirstCause": false,
+                "LastCause": false
+              },
+              {
+                "Number": 7,
+                "Content": "AWS_SECRET_ACCESS_KEY=****************************************",
+                "IsCause": true,
+                "Annotation": "",
+                "Truncated": false,
+                "Highlighted": "AWS_SECRET_ACCESS_KEY=****************************************",
+                "FirstCause": true,
+                "LastCause": true
+              }
+            ]
+          },
+          "Match": "AWS_SECRET_ACCESS_KEY=****************************************",
+          "Offset": 237
+        }
+      ]
+    }
+  ]
+}

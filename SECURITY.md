@@ -2,28 +2,27 @@
 
 **Projet :** DataShare  
 **Technologies :** Angular 21, Spring Boot 4.1.1, PostgreSQL, AWS S3  
-**Outils d'analyse :** npm audit, OWASP Dependency-Check  
-**Date :** 6 novembre 2026
+**Outils :** npm audit, OWASP Dependency-Check, CycloneDX, Trivy  
+**Date :** 15 novembre 2026
 
 ---
 
 ## 1. Objectif de l'audit
 
-L'objectif de cet audit est d'évaluer la sécurité des dépendances utilisées dans DataShare, d'identifier les vulnérabilités connues et de mettre en œuvre des mesures correctives lorsque cela est possible.
+L'objectif est d'identifier et de corriger les vulnérabilités connues dans les dépendances frontend et backend de DataShare.
 
-L'analyse porte principalement sur les dépendances du frontend Angular et du backend Spring Boot.
+La démarche repose sur un audit initial, l'application des correctifs et un nouveau scan pour vérifier leur efficacité.
 
-La démarche consiste à effectuer un premier audit, analyser les résultats, appliquer les corrections nécessaires, puis vérifier que l'application fonctionne toujours correctement.
 
 ## 2. Outils et méthodologie
 
-Deux outils ont été retenus pour analyser les dépendances.
-
-| Outil | Partie concernée | Objectif |
+| Outil | Partie | Objectif |
 |---|---|---|
-| `npm audit` | Frontend Angular | Identifier les vulnérabilités connues dans l'ensemble des dépendances npm |
-| `npm audit --omit=dev` | Frontend Angular | Vérifier les dépendances npm hors dépendances de développement |
-| OWASP Dependency-Check | Backend Spring Boot | Identifier les vulnérabilités connues dans les dépendances Maven |
+| npm audit | Angular | Analyser les dépendances npm |
+| npm audit --omit=dev | Angular | Analyser les dépendances de production |
+| OWASP Dependency-Check | Spring Boot | Tentative initiale d'audit Maven |
+| CycloneDX | Spring Boot | Générer l'inventaire SBOM |
+| Trivy | Spring Boot | Détecter les vulnérabilités et les secrets |
 
 Les vulnérabilités sont classées selon quatre niveaux de gravité :
 
@@ -206,94 +205,90 @@ Ces tests ne remplacent pas non plus un audit de sécurité : ils permettent pri
 
 ## 4. Audit de sécurité du backend
 
-### 4.1. Outil retenu
+### 4.1. Méthodologie
 
-Pour analyser les dépendances du backend Spring Boot, l'outil **OWASP Dependency-Check** a été sélectionné.
+Une première analyse avec OWASP Dependency-Check a été interrompue par un problème d'accès aux données NVD.
 
-Cet outil permet de rechercher des vulnérabilités connues dans les bibliothèques Maven à partir de bases de données de sécurité, notamment la National Vulnerability Database (NVD).
+L'audit a ensuite été réalisé avec CycloneDX et Trivy.
 
-La commande suivante a été exécutée depuis le dossier du backend :
-
-```powershell
-./mvnw org.owasp:dependency-check-maven:13.0.0:check
-```
-
-### 4.2. Difficulté rencontrée
-
-Lors de l'exécution, le plugin a été téléchargé correctement depuis Maven Central.
-
-Cependant, l'outil n'a pas réussi à récupérer les informations nécessaires depuis la base NVD.
-
-Les principales erreurs rencontrées sont :
-
-```text
-Error updating the NVD Data
-
-Invalid API Key, length of 0
-
-NoDataException: No documents exist
-
-BUILD FAILURE
-```
-
-Le problème était lié à la récupération des données de vulnérabilités et à l'absence d'une clé API NVD utilisable.
-
-Une demande de clé API NVD était nécessaire pour poursuivre l'analyse dans les conditions rencontrées.
-
-Cependant, **je n'ai pas réussi à obtenir cette clé API**, ce qui ne m'a pas permis de terminer le scan.
-
-### 4.4. Vérifications techniques réalisées sur le backend
-
-Bien que l'audit des dépendances n'ait pas abouti, les tests automatisés du backend ont été exécutés avec succès.
-
-Commande :
+**Génération du SBOM :**
 
 ```powershell
-./mvnw clean verify
+.\mvnw.cmd org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom "-DoutputFormat=json"
 ```
 
-**Résultats obtenus :**
+**Résultat :** 154 composants Maven identifiés.
 
-| Vérification | Résultat |
-|---|---|
-| Compilation Maven | BUILD SUCCESS |
-| Tests exécutés | 66 |
-| Tests réussis | 66 |
-| Échecs | 0 |
-| Erreurs | 0 |
-| Couverture des instructions JaCoCo | 91 % |
-| Couverture des branches JaCoCo | 80 % |
+**Analyse des vulnérabilités :**
 
-Ces résultats permettent de confirmer le bon déroulement des tests et le respect du seuil de couverture fixé pour le projet.
+```powershell
+docker run --rm `
+  -v "${PWD}:/src" `
+  aquasec/trivy:latest sbom `
+  --scanners vuln `
+  --format table `
+  --output /src/security/trivy-backend.txt `
+  /src/security/backend-sbom.json
+```
 
-Ils ne permettent toutefois pas de conclure à l'absence de vulnérabilités de sécurité dans les dépendances du backend.
+### 4.2. Résultats et corrections
+
+Le premier scan Trivy a identifié **18 vulnérabilités** : 4 critiques, 10 élevées et 4 modérées.
+
+| Dépendance | Version initiale | Version corrigée |
+|---|---|---|
+| Apache Tomcat | 11.0.24 | 11.0.25 |
+| Jackson 2 | 2.21.5 | 2.21.7 |
+| Jackson 3 | 3.1.5 | 3.1.7 |
+
+Les versions ont été mises à jour dans le `pom.xml` et confirmées avec `mvn dependency:tree`.
+
+Un nouveau SBOM a été généré, puis analysé avec Trivy.
+
+**Résultat final : 0 vulnérabilité détectée dans les dépendances Java analysées.**
+
+### 4.3. Analyse des secrets
+
+Le scan Trivy a également identifié deux secrets AWS dans le fichier local `.env` :
+
+- AWS Access Key ID
+- AWS Secret Access Key
+
+Le fichier `.env` n'est pas suivi par Git, comme confirmé par `git ls-files -- .env`. Les identifiants sont conservés hors du dépôt.
+
+---
 
 ## 5. Bilan général
 
 | Vérification | Résultat |
 |---|---|
 | Audit initial Angular 19 | 57 vulnérabilités |
-| Après `npm audit fix` | 51 vulnérabilités |
+| Après npm audit fix | 51 vulnérabilités |
 | Après migration Angular 20 | 24 vulnérabilités |
 | Après migration Angular 21 | 24 vulnérabilités |
-| Vulnérabilités critiques sous Angular 21 | 0 |
-| Vulnérabilités élevées sous Angular 21 | 0 |
-| Vulnérabilités modérées sous Angular 21 | 16 |
-| Vulnérabilités faibles sous Angular 21 | 8 |
-| **Audit npm des dépendances de production** | **0 vulnérabilité détectée** |
-| Audit OWASP backend | Non réalisé jusqu'au terme : clé API NVD non obtenue |
-| Tests backend | 66/66 réussis |
+| Vulnérabilités critiques Angular 21 | 0 |
+| Vulnérabilités élevées Angular 21 | 0 |
+| Vulnérabilités modérées Angular 21 | 16 |
+| Vulnérabilités faibles Angular 21 | 8 |
+| **Audit npm production** | **0 vulnérabilité** |
+| Composants Maven inventoriés | 154 |
+| Audit backend initial Trivy | 18 vulnérabilités |
+| **Audit backend après correction** | **0 vulnérabilité** |
+| Analyse des secrets AWS | 2 secrets détectés dans `.env` non versionné |
+| Tests backend | 69/70 réussis lors de la dernière exécution communiquée |
 | Tests frontend Jest | 90/90 réussis |
-| Tests frontend Cypress | 23/23 réussis lors de la dernière campagne complète |
+| Tests frontend Cypress | 23/23 réussis |
+
+---
 
 ## 8. Conclusion
 
-L'audit de sécurité réalisé sur DataShare a permis d'identifier puis de réduire significativement les vulnérabilités connues dans les dépendances du frontend.
+L'audit de sécurité de DataShare a permis de réduire les vulnérabilités connues du frontend de **57 à 24**, soit une diminution d'environ 58 %.
 
-La migration progressive d'Angular 19 vers Angular 21 a contribué à faire passer le nombre total d'alertes de **57 à 24**, soit une réduction d'environ 58 %.
+Pour le backend, l'analyse de 154 composants Maven avec CycloneDX et Trivy a permis d'identifier puis de corriger **18 vulnérabilités**, dont 4 critiques.
 
-Concernant le backend, l'outil OWASP Dependency-Check a été installé et lancé, mais le scan n'a pas pu être terminé à cause d'une difficulté d'accès aux données NVD. Malgré la tentative effectuée, je n'ai pas réussi à obtenir la clé API nécessaire pour poursuivre l'analyse.
+Le scan final confirme **0 vulnérabilité détectée dans les dépendances backend analysées**.
 
-En parallèle, les tests automatisés ont confirmé le bon fonctionnement des fonctionnalités testées du projet, avec 66 tests backend et 90 tests Jest réussis, ainsi que 23 tests Cypress réussis lors de la dernière campagne complète.
+Les vérifications des secrets AWS ont également permis de confirmer que le fichier local `.env` n'est pas suivi par Git.
 
-En conclusion, cette démarche a permis d'améliorer de manière mesurable la sécurité des dépendances frontend de DataShare et d'identifier les vérifications restant à effectuer. L'audit backend constitue une limite technique documentée et une piste d'amélioration pour la suite du projet.
+Ces actions renforcent la sécurité des dépendances du projet et apportent des résultats mesurables à l'audit.
